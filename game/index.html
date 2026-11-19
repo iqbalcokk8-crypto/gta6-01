@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>STREET LEGACY — Open-World Crime in Velmora</title>
+<style>
+  :root{ --ink:#f5efe2; --muted:#b8ad96; --accent:#ffb02e; --red:#ff4d3d; --blue:#3fa9ff; --panel:rgba(12,12,18,.78); }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; height:100%; overflow:hidden; background:#0d0f16; color:var(--ink);
+    font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif; }
+  #game{ position:fixed; inset:0; }
+  #game canvas{ display:block; }
+  #hud{ position:fixed; inset:0; pointer-events:none; z-index:5; }
+  .panel{ background:var(--panel); border:1px solid rgba(255,255,255,.14); border-radius:10px;
+    backdrop-filter:blur(4px); box-shadow:0 4px 16px rgba(0,0,0,.35); }
+  #topleft{ position:absolute; top:12px; left:12px; padding:10px 14px; min-width:230px; border-top:2px solid rgba(255,176,46,.55); }
+  #stars{ font-size:24px; letter-spacing:3px; color:var(--accent); text-shadow:0 0 8px rgba(255,176,46,.6); min-height:26px; }
+  #stars .off{ color:#5a5344; text-shadow:none; }
+  #stars.hot span:not(.off){ animation:starpulse .7s ease-in-out infinite alternate; }
+  @keyframes starpulse{ from{ text-shadow:0 0 6px rgba(255,60,40,.5); } to{ text-shadow:0 0 16px rgba(255,60,40,.95); transform:scale(1.08); } }
+  #healthbar{ height:10px; background:#2a2a30; border:1px solid rgba(255,255,255,.18); border-radius:5px; overflow:hidden; margin:6px 0 4px; }
+  #healthfill{ height:100%; width:100%; background:linear-gradient(90deg,#37d67a,#a8e063); transition:width .2s; }
+  #cashline{ font-weight:700; font-size:17px; } #cashline b{ color:#7be495; }
+  #repline{ font-size:12px; color:var(--muted); margin-top:2px; }
+  #minimap{ position:absolute; top:12px; right:12px; border:2px solid rgba(255,176,46,.55); border-radius:10px;
+    background:#10131c; box-shadow:0 4px 18px rgba(0,0,0,.55), inset 0 0 0 1px rgba(0,0,0,.6); }
+  #objective{ position:absolute; left:50%; bottom:118px; transform:translateX(-50%); padding:9px 18px;
+    font-size:14px; text-align:center; max-width:640px; border-radius:20px; border-top:2px solid rgba(255,176,46,.55); }
+  #objective b{ color:var(--accent); }
+  #objective .dist{ color:var(--muted); font-size:12px; }
+  #hint{ position:absolute; left:12px; bottom:12px; padding:8px 12px; font-size:12px; color:var(--muted); line-height:1.6; }
+  #hint b{ color:var(--ink); }
+  #toast{ position:absolute; left:50%; top:84px; transform:translateX(-50%); padding:8px 18px; font-weight:700;
+    font-size:15px; opacity:0; transition:opacity .25s; white-space:nowrap; border-radius:20px; border-top:2px solid rgba(255,176,46,.55); }
+  #banner{ position:absolute; left:50%; top:32%; transform:translate(-50%,-50%) scale(.96); text-align:center;
+    opacity:0; transition:opacity .3s, transform .3s; pointer-events:none; }
+  #banner.show{ opacity:1; transform:translate(-50%,-50%) scale(1); }
+  #banner h1{ margin:0; font-size:46px; letter-spacing:4px;
+    background:linear-gradient(180deg,#ffe9a8,#ffb02e 55%,#ff7a1c);
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+    filter:drop-shadow(0 3px 0 rgba(122,61,0,.9)) drop-shadow(0 6px 24px rgba(0,0,0,.7)); }
+  #banner p{ margin:6px 0 0; font-size:16px; color:var(--ink); text-shadow:0 2px 8px rgba(0,0,0,.8); }
+  #dialogue{ position:absolute; left:50%; bottom:170px; transform:translateX(-50%); width:min(620px,90vw);
+    padding:14px 18px; display:none; border-left:4px solid var(--accent); }
+  #dialogue .who{ display:inline-block; color:#1a1206; background:linear-gradient(180deg,#ffd166,#ff9d1c);
+    font-weight:800; font-size:12px; letter-spacing:1px; text-transform:uppercase; padding:2px 8px; border-radius:4px; }
+  #dialogue .line{ font-size:16px; line-height:1.5; margin-top:4px; }
+  #dialogue .next{ font-size:11px; color:var(--muted); margin-top:6px; text-align:right; }
+  #crosshair{ position:absolute; left:50%; top:50%; width:14px; height:14px; margin:-7px 0 0 -7px; display:none; }
+  #crosshair:before,#crosshair:after{ content:""; position:absolute; background:#fff; box-shadow:0 0 3px #000; }
+  #crosshair:before{ left:6px; top:0; width:2px; height:14px; } #crosshair:after{ left:0; top:6px; width:14px; height:2px; }
+  #interact{ position:absolute; left:50%; top:58%; transform:translateX(-50%); padding:6px 14px; font-size:14px; display:none; }
+  #interact b{ color:var(--accent); }
+  #damage{ position:fixed; inset:0; pointer-events:none; background:radial-gradient(ellipse at center,transparent 55%,rgba(255,0,0,.55) 100%);
+    opacity:0; transition:opacity .15s; z-index:6; }
+  #vignette{ position:fixed; inset:0; pointer-events:none; background:radial-gradient(ellipse at center,transparent 62%,rgba(0,0,0,.45) 100%); z-index:4; }
+  .overlay{ position:fixed; inset:0; z-index:10; display:flex; align-items:center; justify-content:center;
+    background:linear-gradient(180deg,rgba(8,8,14,.5),rgba(8,8,14,.82)),
+      radial-gradient(ellipse 70% 45% at 50% 0%,rgba(255,150,40,.16),transparent 70%); }
+  .card{ width:min(680px,92vw); padding:22px 40px 18px; text-align:center; border:1px solid rgba(255,176,46,.4);
+    border-radius:16px; background:linear-gradient(180deg,rgba(16,16,26,.92),rgba(10,10,16,.88));
+    box-shadow:0 20px 60px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.08); }
+  .card h1{ margin:0; font-size:48px; letter-spacing:6px;
+    background:linear-gradient(180deg,#fff3c4,#ffd166 40%,#ff9d1c 75%,#ff7a1c);
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+    filter:drop-shadow(0 3px 0 rgba(122,61,0,.9)) drop-shadow(0 0 22px rgba(255,150,40,.35));
+    animation:titleglow 3s ease-in-out infinite alternate; }
+  @keyframes titleglow{ from{ filter:drop-shadow(0 3px 0 rgba(122,61,0,.9)) drop-shadow(0 0 14px rgba(255,150,40,.25)); }
+    to{ filter:drop-shadow(0 3px 0 rgba(122,61,0,.9)) drop-shadow(0 0 30px rgba(255,150,40,.55)); } }
+  .card h2{ margin:4px 0 0; font-size:15px; letter-spacing:5px; color:var(--muted); font-weight:600; }
+  .card p{ color:#d8cfba; line-height:1.6; font-size:14px; margin:10px 0; }
+  .card .tag{ display:inline-block; margin:6px 4px 0; padding:4px 10px; border:1px solid rgba(255,255,255,.2);
+    border-radius:20px; font-size:12px; color:var(--muted); background:rgba(255,255,255,.04); }
+  .btn{ pointer-events:auto; cursor:pointer; display:inline-block; margin-top:12px; padding:13px 34px; font-size:17px;
+    font-weight:800; letter-spacing:1px; color:#1a1206; background:linear-gradient(180deg,#ffd166,#ff9d1c);
+    border:none; border-radius:10px; box-shadow:0 6px 0 #a35c00,0 10px 24px rgba(0,0,0,.5); transition:transform .12s, box-shadow .12s, filter .12s; }
+  .btn:hover{ transform:translateY(-2px); filter:brightness(1.07); box-shadow:0 8px 0 #a35c00,0 14px 28px rgba(0,0,0,.55); }
+  .btn:active{ transform:translateY(3px); box-shadow:0 3px 0 #a35c00; }
+  .btn.ghost{ background:rgba(255,255,255,.05); color:var(--ink); border:1px solid rgba(255,255,255,.35); box-shadow:none; font-size:14px; padding:10px 22px; }
+  .btn.ghost:hover{ background:rgba(255,255,255,.12); box-shadow:none; }
+  #btnStart{ font-size:18px; padding:12px 36px; }
+  .small{ font-size:12px; color:var(--muted); margin-top:10px; line-height:1.6; }
+  #loading{ position:fixed; inset:0; z-index:20; display:flex; align-items:center; justify-content:center;
+    background:#0d0f16; color:var(--muted); font-size:14px; letter-spacing:2px; }
+  #fps{ position:absolute; right:12px; bottom:12px; font-size:11px; color:rgba(255,255,255,.45); font-family:ui-monospace,monospace; }
+  #status{ position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/three.module.min.js" } }
+</script>
+</head>
+<body>
+<div id="game"></div>
+<div id="vignette"></div>
+<div id="damage"></div>
+<div id="hud">
+  <div id="topleft" class="panel">
+    <div id="stars"></div>
+    <div id="healthbar"><div id="healthfill"></div></div>
+    <div id="cashline">💵 <b id="cash">$120</b> &nbsp;·&nbsp; <span id="ammo">🔫 12/∞</span></div>
+    <div id="repline">REP <span id="rep">0</span> · <span id="clock">18:24</span> · <span id="speed">0 km/h</span></div>
+  </div>
+  <canvas id="minimap" width="190" height="190"></canvas>
+  <div id="toast" class="panel"></div>
+  <div id="banner"><h1 id="bannerTitle"></h1><p id="bannerSub"></p></div>
+  <div id="objective" class="panel"><b id="objTitle">FREE ROAM</b><br><span id="objText">Explore Velmora. Steal a car with E, cause trouble — and watch the stars.</span><br><span class="dist" id="objDist"></span></div>
+  <div id="dialogue" class="panel"><div class="who" id="dlgWho"></div><div class="line" id="dlgLine"></div><div class="next">E / click — lanjut</div></div>
+  <div id="crosshair"></div>
+  <div id="interact" class="panel"></div>
+  <div id="hint" class="panel"><b>WASD</b> gerak &nbsp;·&nbsp; <b>Mouse</b> kamera &nbsp;·&nbsp; <b>Shift</b> lari &nbsp;·&nbsp; <b>Space</b> lompat<br><b>E</b> masuk/keluar mobil &nbsp;·&nbsp; <b>Klik</b> tembak &nbsp;·&nbsp; <b>F</b> pukul &nbsp;·&nbsp; <b>R</b> isi peluru<br><b>P</b> jeda &nbsp;·&nbsp; <b>N</b> siang/malam &nbsp;·&nbsp; <b>M</b> suara &nbsp;·&nbsp; <b>H</b> bantuan</div>
+  <div id="fps"></div>
+</div>
+<p id="status" role="status" aria-live="polite"></p>
+
+<div id="menu" class="overlay">
+  <div class="card">
+    <h1>STREET LEGACY</h1>
+    <h2>VELMORA CITY &nbsp;·&nbsp; AN OPEN-WORLD CRIME STORY</h2>
+    <p>Kai Mercer pulang ke Velmora setelah lima tahun — dan kotanya sudah bukan miliknya lagi.
+    Keluarga Voss menguasai pelabuhan, polisi dibayar, dan utang lama menagih.
+    Curi mobil, kabur dari kejaran, selesaikan tiga misi, dan rebut kembali jalanan.</p>
+    <div><span class="tag">🚗 Drive &amp; steal cars</span><span class="tag">⭐ Wanted system</span><span class="tag">👮 Police chases</span><span class="tag">🎯 3 story missions</span></div>
+    <br>
+    <button class="btn" id="btnStart">▶ &nbsp;START STORY</button>
+    <button class="btn ghost" id="btnFree">FREE ROAM</button>
+    <button class="btn ghost" id="btnContinue" style="display:none">CONTINUE</button>
+    <div class="small">Original game — all characters, city, story and art are original.<br>
+    WASD move · mouse camera · E enter/exit car · click shoot · F punch · P pause<br>
+    Best on desktop Chrome/Edge, keyboard + mouse. No network needed.</div>
+  </div>
+</div>
+
+<div id="endScreen" class="overlay" style="display:none">
+  <div class="card">
+    <h1 id="endTitle">BUSTED</h1>
+    <h2 id="endSub">The Velmora PD caught up with you.</h2>
+    <p id="endText"></p>
+    <button class="btn" id="btnRetry">↻ &nbsp;TRY AGAIN</button>
+    <button class="btn ghost" id="btnRoam">FREE ROAM</button>
+  </div>
+</div>
+
+<div id="loading">LOADING VELMORA…</div>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
